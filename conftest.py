@@ -1,31 +1,38 @@
 import pytest
-import os
-
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
 
 
 def pytest_addoption(parser):
     parser.addoption("--browser", default="chrome")
-    parser.addoption("--url", default="https://www.opencart.com/")
+    parser.addoption("--url", default="http://localhost:8081/")
 
 
-@pytest.fixture
+@pytest.fixture()
 def browser(request):
+    """Фикстура инициализации браузера"""
+
     browser = request.config.getoption("--browser")
+    url = request.config.getoption("--url")
 
     if browser == "chrome":
-        service = Service()
-        driver = webdriver.Chrome(service=service)
-    elif browser == "firefox":
-        driver = webdriver.Firefox()
-    else:
-        raise Exception("Driver not supported")
+        options = webdriver.ChromeOptions()
+        options.add_argument("--no-sandbox")
 
-    request.addfinalizer(driver.quit)
+        driver = webdriver.Chrome(
+            options=options,
+        )
 
-    return driver
+        request.addfinalizer(driver.quit)
 
-@pytest.fixture
-def url(request):
-    return request.config.getoption("--url")
+        driver.url = url
+
+        def open(path=""):
+            return driver.get(url + path)
+
+        driver.maximize_window()
+        driver.implicitly_wait(3)
+
+        driver.open = open
+        driver.open()
+
+        return driver
