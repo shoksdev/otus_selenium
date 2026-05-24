@@ -1,5 +1,5 @@
-from page_objects.login_page import LoginPage
-from page_objects.elements.login_form import LoginForm
+from page_objects.opencart.login_page import LoginPage
+from page_objects.opencart.elements.login_form import LoginForm
 
 
 def test_check_main(browser):

@@ -1,4 +1,4 @@
-from page_objects.login_admin_page import LoginAdminPage
+from page_objects.opencart.login_admin_page import LoginAdminPage
 
 
 def test_check_login_admin(browser):

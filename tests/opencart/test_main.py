@@ -1,4 +1,4 @@
-from page_objects.main_page import MainPage
+from page_objects.opencart.main_page import MainPage
 
 
 def test_check_main(browser):

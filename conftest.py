@@ -18,9 +18,7 @@ def browser(request):
         options = webdriver.ChromeOptions()
         options.add_argument("--no-sandbox")
 
-        driver = webdriver.Chrome(
-            options=options,
-        )
+        driver = webdriver.Chrome(options=options,)
 
         request.addfinalizer(driver.quit)
 

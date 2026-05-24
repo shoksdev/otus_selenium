@@ -1,4 +1,4 @@
-from page_objects.register_user_page import RegisterUserPage
+from page_objects.opencart.register_user_page import RegisterUserPage
 
 
 def test_check_register_user(browser):

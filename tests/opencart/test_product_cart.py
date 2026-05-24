@@ -1,4 +1,4 @@
-from page_objects.cart_page import CartPage
+from page_objects.opencart.cart_page import CartPage
 
 
 def test_check_product_cart(browser):

@@ -1,6 +1,6 @@
 from selenium.webdriver.common.by import By
 
-from page_objects.base_page import BasePage
+from page_objects.opencart.base_page import BasePage
 
 class LoginPage(BasePage):
     RESULT_LOGIN = (By.CSS_SELECTOR, ".col-md-9")

@@ -1,4 +1,4 @@
-from page_objects.catalog_page import CatalogPage
+from page_objects.opencart.catalog_page import CatalogPage
 
 
 def test_check_catalog(browser):

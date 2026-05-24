@@ -1,6 +1,6 @@
 from selenium.webdriver.common.by import By
 
-from page_objects.base_page import BasePage
+from page_objects.opencart.base_page import BasePage
 
 class CartPage(BasePage):
     CHECK_H3 = (By.CSS_SELECTOR, "h3")
