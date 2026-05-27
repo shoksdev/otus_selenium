@@ -1,39 +1,101 @@
 services:
-
-  phpadmin:
-    image: 'phpmyadmin/phpmyadmin:latest'
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: phpmyadmin
+    restart: unless-stopped
     environment:
-      - PMA_HOST=mariadb
-      - PMA_PORT=3306
-      - PMA_USER=bn_opencart
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_ARBITRARY: 1
+      PMA_USER: root
+      PMA_PASSWORD: admin
     ports:
-      - '${PHPADMIN_PORT}:80'
-
-  mariadb:
-    image: docker.io/bitnami/mariadb:11.2
-    environment:
-      - ALLOW_EMPTY_PASSWORD=yes
-      - MARIADB_USER=bn_opencart
-      - MARIADB_DATABASE=bitnami_opencart
-    ports:
-      - '3306:3306'
-
-  opencart:
-    image: agridyaev/opencart:4.0.2-3-debian-12-r33
-    ports:
-      - '${OPENCART_PORT}:8080'
-      - '443:8443'
-    environment:
-      - OPENCART_HOST=${LOCAL_IP}:${OPENCART_PORT}
-      - OPENCART_DATABASE_HOST=mariadb
-      - OPENCART_DATABASE_PORT_NUMBER=3306
-      - OPENCART_DATABASE_USER=bn_opencart
-      - OPENCART_DATABASE_NAME=bitnami_opencart
-      - ALLOW_EMPTY_PASSWORD=yes
+      - "8888:80"
     depends_on:
-      - mariadb
+      db:
+        condition: service_healthy
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+
+  db:
+    image: mysql:8.0
+    container_name: mysql_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: admin
+      MYSQL_DATABASE: prestashop
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:${OPENCART_PORT}" ]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-padmin"]
       interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 10
+      start_period: 30s
+    volumes:
+      - db_data:/var/lib/mysql
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+
+  prestashop:
+    image: prestashop/prestashop:8.1.5
+    container_name: prestashop
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    environment:
+      DB_SERVER: db
+      DB_NAME: prestashop
+      DB_USER: root
+      DB_PASSWD: admin
+      DB_PREFIX: ps_
+      PS_INSTALL_AUTO: "1"
+      PS_LANGUAGE: "en"
+      PS_COUNTRY: "US"
+      PS_DEV_MODE: "1"
+      PS_DOMAIN: "localhost:8081"
+      ADMIN_MAIL: "admin@example.com"
+      ADMIN_PASSWD: "Admin123!"
+      PS_FOLDER_ADMIN: "administration"
+      PS_FOLDER_INSTALL: "install"
+    volumes:
+      - ps_data:/var/www/html
+    depends_on:
+      db:
+        condition: service_healthy
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+
+  prestashop_postinstall:
+    image: alpine:3.19
+    container_name: prestashop_postinstall
+    restart: "no"
+    depends_on:
+      - prestashop
+    volumes:
+      - ps_data:/var/www/html
+    command: >
+      sh -lc '
+        apk add --no-cache curl >/dev/null 2>&1 || true;
+        echo "Waiting for PrestaShop HTTP to respond...";
+        until curl -fsS http://prestashop/ >/dev/null; do sleep 5; done;
+        echo "Waiting for config to exist...";
+        until [ -f /var/www/html/config/settings.inc.php ] || [ -f /var/www/html/app/config/parameters.php ]; do sleep 2; done;
+        echo "Extra grace period...";
+        sleep 15;
+        echo "Removing install folders...";
+        rm -rf /var/www/html/install /var/www/html/install-dev || true;
+        echo "Clearing cache...";
+        rm -rf /var/www/html/var/cache/* || true;
+        echo "Done."
+      '
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+
+volumes:
+  db_data:
+    driver: local
+  ps_data:
+    driver: local
