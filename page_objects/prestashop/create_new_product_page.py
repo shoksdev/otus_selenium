@@ -14,13 +14,20 @@ class CreateNewProductPage(BasePage):
 
 
     def create_new_product(self, product_name, retail_price, cost_price):
+        self.logger.info(f"{self.class_name}: Click Menu BTN to hide menu")
         self.click(self.MENU_COLLAPSE)
 
+        self.logger.info(f"{self.class_name}: Enter information in the Product Name input")
         self.send_keys(self.PRODUCT_NAME_INPUT, product_name)
 
+        self.logger.info(f"{self.class_name}: Click Pricing Tab")
         self.click(self.PRICING_ELEMENT)
+        self.logger.info(f"{self.class_name}: Enter information in the Retail Price input")
         self.send_keys(self.RETAIL_PRICE_INPUT, retail_price)
+        self.logger.info(f"{self.class_name}: Enter information in the Cost Price input")
         self.send_keys(self.COST_PRICE_INPUT, cost_price)
 
+        self.logger.info(f"{self.class_name}: Find Save BTN")
         self.wait_element_visible(self.SAVE_BTN)
+        self.logger.info(f"{self.class_name}: Click Save BTN")
         self.click(self.SAVE_BTN)

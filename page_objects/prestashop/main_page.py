@@ -8,8 +8,10 @@ class MainPage(BasePage):
     NEW_CURRENCY = (By.CSS_SELECTOR, ".dropdown-menu.hidden-sm-down li:nth-child(2)")
 
     def sign_in(self):
+        self.logger.info(f"{self.class_name}: Click Sign In BTN for Sign In: {self.SIGN_IN_BTN}")
         self.click(self.SIGN_IN_BTN)
 
     def change_currency(self):
+        self.logger.info(f"{self.class_name}: Change Currency from {self.CURRENT_CURRENCY} to {self.NEW_CURRENCY}")
         self.click(self.CURRENT_CURRENCY)
         self.click(self.NEW_CURRENCY)
