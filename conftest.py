@@ -1,36 +1,74 @@
+import datetime
+import os
+import allure
+
 import pytest
+import logging
+
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service as ChromeServise
+from selenium.webdriver.chrome.options import Options
 
 
 def pytest_addoption(parser):
     parser.addoption("--browser", default="chrome")
-    parser.addoption("--url", default="http://localhost:8081/")
+    parser.addoption("--log_level", action="store", default="INFO")
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item):
+    outcome = yield
+    rep = outcome.get_result()
+
+    if rep.when in ["setup", "call"] and rep.failed:
+
+        browser = item.funcargs.get("browser")
+
+        if browser:
+            os.makedirs("screenshots", exist_ok=True)
+
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            path = f"screenshots/{browser.test_name}_{timestamp}.png"
+
+            browser.save_screenshot(path)
+
+            with open(path, "rb") as file:
+                allure.attach(
+                    file.read(),
+                    name="failure_screenshot",
+                    attachment_type=allure.attachment_type.PNG
+                )
+
+            browser.logger.error(f"Screenshot saved: {path}")
 
 
-@pytest.fixture()
+@pytest.fixture
 def browser(request):
-    """Фикстура инициализации браузера"""
-
     browser = request.config.getoption("--browser")
-    url = request.config.getoption("--url")
+    log_level = request.config.getoption("--log_level")
 
-    if browser == "chrome":
-        options = webdriver.ChromeOptions()
-        options.add_argument("--no-sandbox")
+    logger = logging.getLogger(request.node.name)
+    file_handler = logging.FileHandler(f"logs/{request.node.name}.log", mode="w")
+    file_handler.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
+    logger.addHandler(file_handler)
+    logger.setLevel(level=log_level)
 
-        driver = webdriver.Chrome(options=options,)
+    logger.info("===> Test started at %s" % datetime.datetime.now())
 
-        request.addfinalizer(driver.quit)
+    service = ChromeServise()
+    options = Options()
+    options.page_load_strategy = 'eager'
+    driver = webdriver.Chrome(service=service, options=options)
 
-        driver.url = url
+    driver.log_level = log_level
+    driver.logger = logger
+    driver.test_name = request.node.name
 
-        def open(path=""):
-            return driver.get(url + path)
+    logger.info("Browser %s started" % browser)
 
-        driver.maximize_window()
-        driver.implicitly_wait(3)
+    def fin():
+        driver.quit()
+        logger.info("===> Test finished at %s" % datetime.datetime.now())
 
-        driver.open = open
-        driver.open()
-
-        return driver
+    request.addfinalizer(fin)
+    return driver
