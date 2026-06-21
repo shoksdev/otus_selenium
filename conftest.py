@@ -14,6 +14,7 @@ def pytest_addoption(parser):
     parser.addoption("--browser", default="chrome")
     parser.addoption("--log_level", action="store", default="INFO")
 
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item):
     outcome = yield
@@ -48,6 +49,7 @@ def browser(request):
     log_level = request.config.getoption("--log_level")
 
     logger = logging.getLogger(request.node.name)
+    os.makedirs("logs", exist_ok=True)
     file_handler = logging.FileHandler(f"logs/{request.node.name}.log", mode="w")
     file_handler.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
     logger.addHandler(file_handler)
@@ -58,6 +60,10 @@ def browser(request):
     service = ChromeServise()
     options = Options()
     options.page_load_strategy = 'eager'
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1920,1080")
     driver = webdriver.Chrome(service=service, options=options)
 
     driver.log_level = log_level
