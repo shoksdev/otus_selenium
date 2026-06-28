@@ -15,7 +15,7 @@ class BasePage:
 
     def click(self, locator: tuple, pause=0.1):
         self.logger.debug("%s: Clicking element: %s" % (self.class_name, str(locator)))
-        ActionChains(self.driver).move_to_element(WebDriverWait(self.driver, 2).until(EC.element_to_be_clickable(locator))).pause(pause).click().perform()
+        ActionChains(self.driver).move_to_element(WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable(locator))).pause(pause).click().perform()
 
     def clear(self, locator: tuple):
         self.logger.debug("%s: Clear input: %s" % (self.class_name, str(locator)))

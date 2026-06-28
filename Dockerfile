@@ -9,7 +9,7 @@ COPY requirements.txt .
 RUN apt update && \
     apt install -y default-jre nodejs npm && \
     npm install -g allure && \
-    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir -r requirements.txt requests && \
     rm -rf /var/lib/apt/lists/*
 
 COPY . .
