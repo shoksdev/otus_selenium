@@ -1,5 +1,6 @@
 import allure
 
+from config import PRESTASHOP_URL
 from page_objects.prestashop.main_page import MainPage
 from page_objects.prestashop.register_page import RegisterPage
 from page_objects.prestashop.sign_in_page import SignInPage
@@ -8,7 +9,7 @@ from page_objects.prestashop.sign_in_page import SignInPage
 @allure.suite("Регистрация нового пользователя в магазине prestashop")
 def test_register_user(browser):
     with allure.step("Открываем главную страницу, после чего переходим к регистрации через страницу логина"):
-        MainPage(browser).open("http://localhost:8081/")
+        MainPage(browser).open(PRESTASHOP_URL)
         MainPage(browser).sign_in()
         SignInPage(browser).move_to_register()
 
@@ -24,5 +25,5 @@ def test_register_user(browser):
 @allure.suite("Переключение валют из верхнего меню prestashop")
 def test_change_currency(browser):
     with allure.step("Открываем главную страницу и на ней меняем текущую валюту"):
-        MainPage(browser).open("http://localhost:8081/")
+        MainPage(browser).open(PRESTASHOP_URL)
         MainPage(browser).change_currency()
