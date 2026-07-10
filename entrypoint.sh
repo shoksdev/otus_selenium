@@ -2,4 +2,4 @@
 set -e
 mkdir -p logs screenshots allure-results
 
-exec pytest "$@" --browser=chrome
+exec pytest "$@"

@@ -1,0 +1,67 @@
+---
+- name: Setup test environment
+  hosts: localhost
+  become: yes
+  vars:
+    project_dir: /opt/prestashop_tests
+    selenoid_version: latest-release
+
+  tasks:
+    - name: Install Docker and Docker Compose
+      apt:
+        name:
+          - docker.io
+          - docker-compose
+        state: present
+        update_cache: yes
+
+    - name: Start Docker service
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Copy project files
+      copy:
+        src: ../../
+        dest: "{{ project_dir }}"
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Create browsers.json
+      template:
+        src: templates/browsers.json.j2
+        dest: "{{ project_dir }}/browsers.json"
+        mode: '0644'
+
+    - name: Run Selenoid with docker-compose
+      docker_compose:
+        project_src: "{{ project_dir }}"
+        services:
+          - selenoid
+          - selenoid-ui
+        state: present
+      register: output
+
+    - name: Wait for Selenoid to start
+      wait_for:
+        port: 4444
+        host: localhost
+        timeout: 60
+
+    - name: Run tests
+      docker_compose:
+        project_src: "{{ project_dir }}"
+        services:
+          - tests
+        state: present
+        recreate: always
+      register: test_results
+
+    - name: Collect test results
+      fetch:
+        src: "{{ project_dir }}/allure-results/"
+        dest: ./test-results/
+        flat: yes
+      when: test_results is defined

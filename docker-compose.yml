@@ -122,6 +122,7 @@ services:
       -container-network prestashop_selenoid
       -limit 10
       -session-attempt-timeout 2m
+      -timeout 5m
     ports:
       - "4444:4444"
 

@@ -1,0 +1,30 @@
+---
+- name: Run tests on different environments
+  hosts: all
+  vars:
+    test_env: "{{ env | default('selenoid') }}"
+    browser: "{{ browser | default('chrome') }}"
+
+  tasks:
+    - name: Check if Docker is running
+      command: docker ps
+      register: docker_status
+      ignore_errors: yes
+
+    - name: Start test container
+      docker_container:
+        name: test_runner
+        image: "python:3.12"
+        volumes:
+          - "{{ project_dir }}:/app"
+        working_dir: /app
+        command: |
+          bash -c "
+            pip install -r requirements.txt &&
+            pytest --executor={{ test_env }} --browser={{ browser }}
+          "
+      register: test_run
+
+    - name: Show test results
+      debug:
+        msg: "{{ test_run.stdout }}"

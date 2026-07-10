@@ -1,0 +1,15 @@
+---
+browser_versions:
+  chrome: 125.0
+  firefox: 125.0
+
+selenoid_config:
+  limit: 10
+  session_timeout: 5m
+  video: false
+  vnc: true
+
+test_config:
+  log_level: INFO
+  allure: true
+  parallel: 4
