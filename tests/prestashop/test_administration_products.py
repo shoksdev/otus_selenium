@@ -12,7 +12,6 @@ from page_objects.prestashop.create_new_product_page import CreateNewProductPage
 ADMIN_EMAIL = "admin@example.com"
 ADMIN_PASSWORD = "Admin123!"
 
-@pytest.mark.skip
 @allure.suite("Добавление нового товара в разделе администратора")
 def test_administration_create_product(browser):
     with allure.step(f"Входим в раздел администратора с учетными данными: {ADMIN_EMAIL}, {ADMIN_PASSWORD}"):
@@ -31,7 +30,6 @@ def test_administration_create_product(browser):
             cost_price="82.50",
         )
 
-@pytest.mark.skip
 @allure.suite("Удаление товара из списка в разделе администратора")
 def test_administration_delete_product(browser):
     with allure.step(f"Входим в раздел администратора с учетными данными: {ADMIN_EMAIL}, {ADMIN_PASSWORD}"):
@@ -42,4 +40,3 @@ def test_administration_delete_product(browser):
         AdminPage(browser).open_products()
         AdminProductsPage(browser).bulk_delete_product()
         DeleteProductModal(browser).confirm_deleting()
-
