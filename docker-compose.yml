@@ -100,9 +100,20 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
-      - PRESTASHOP_URL=http://host.docker.internal:8081/
+      # ИСПРАВЛЕНО: Используем имя контейнера внутри сети
+      - PRESTASHOP_URL=http://prestashop:80/
+      - SELENOID_URL=http://selenoid:4444/wd/hub
       - PYTHONDONTWRITEBYTECODE=1
     working_dir: /root/prestashop_tests
+    # Добавляем команду для автоматического запуска тестов
+    command: >
+      sh -c "pytest tests/
+        --browser=chrome
+        --browser-version=125.0
+        --executor=selenoid
+        --selenoid-url=http://selenoid:4444/wd/hub
+        --alluredir=/app/allure-results
+        --verbose"
 
   selenoid:
     image: aerokube/selenoid:latest-release
@@ -119,7 +130,7 @@ services:
       - "host.docker.internal:host-gateway"
     command: >
       -conf /etc/selenoid/browsers.json
-      -container-network prestashop_selenoid
+      -container-network selenoid
       -limit 10
       -session-attempt-timeout 2m
       -timeout 5m
@@ -140,7 +151,7 @@ services:
 networks:
   selenoid:
     driver: bridge
-    name: prestashop_selenoid
+    name: selenoid
 
 volumes:
   db_data:

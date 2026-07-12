@@ -76,6 +76,16 @@ pipeline {
                 sh 'python3 --version'
                 sh 'pwd'
                 sh 'ls -la'
+                // Проверяем доступность Selenoid
+                sh '''
+                    echo "🔍 Проверка доступности Selenoid..."
+                    if curl -s -o /dev/null -w "%{http_code}" ${EXECUTOR_URL}/status | grep -q "200"; then
+                        echo "✅ Selenoid доступен"
+                    else
+                        echo "⚠️ Selenoid не доступен по адресу ${EXECUTOR_URL}"
+                        echo "Проверьте, запущен ли Selenoid"
+                    fi
+                '''
             }
         }
 
@@ -87,8 +97,7 @@ pipeline {
                     . ${VENV_PATH}/bin/activate
                     pip install --upgrade pip
                     pip install -r requirements.txt
-                    # Устанавливаем pytest-html если его нет в requirements
-                    pip install pytest-html pytest-xdist || true
+                    pip install pytest-html pytest-xdist
                 '''
             }
         }
@@ -114,10 +123,8 @@ pipeline {
                     mkdir -p allure-results reports
                     . ${VENV_PATH}/bin/activate
 
-                    # Проверяем наличие тестов
                     if [ ! -d "tests" ] || [ -z "$(ls -A tests 2>/dev/null)" ]; then
                         echo "❌ Ошибка: Директория tests пуста или не существует!"
-                        echo "Пожалуйста, добавьте тесты в директорию tests/"
                         exit 1
                     fi
 
@@ -144,16 +151,14 @@ pipeline {
                 script {
                     def allureInstalled = sh(script: 'command -v allure', returnStatus: true) == 0
 
-                    if (allureInstalled && fileExists('allure-results') && fileExists('allure-results/*.json')) {
+                    if (allureInstalled && fileExists('allure-results')) {
                         sh '''
                             mkdir -p allure-report
                             allure generate allure-results -o allure-report --clean
                             echo "✅ Allure отчет сгенерирован"
                         '''
-                    } else if (!allureInstalled) {
-                        echo "⚠️ Allure не установлен. Пропускаем генерацию отчета."
                     } else {
-                        echo "⚠️ Нет результатов Allure для генерации отчета"
+                        echo "⚠️ Allure не установлен или нет результатов. Пропускаем."
                     }
                 }
             }
@@ -164,6 +169,7 @@ pipeline {
         always {
             echo '📈 Публикация отчетов...'
 
+            // Публикация JUnit отчетов
             script {
                 if (fileExists('reports/junit.xml')) {
                     junit allowEmptyResults: true, testResults: 'reports/junit.xml'
@@ -173,6 +179,7 @@ pipeline {
                 }
             }
 
+            // Публикация HTML отчета (если плагин установлен)
             script {
                 try {
                     if (fileExists('reports/report.html')) {
@@ -187,10 +194,12 @@ pipeline {
                         echo '✅ Pytest HTML отчет опубликован'
                     }
                 } catch (Exception e) {
-                    echo "⚠️ Плагин HTML Publisher не установлен: ${e.message}"
+                    echo "⚠️ HTML Publisher плагин не установлен. Пропускаем."
+                    echo "Для установки: Manage Jenkins > Plugins > Available > HTML Publisher"
                 }
             }
 
+            // Публикация Allure отчета
             script {
                 if (params.GENERATE_ALLURE == true && fileExists('allure-report/index.html')) {
                     try {
@@ -209,6 +218,7 @@ pipeline {
                 }
             }
 
+            // Сохраняем артефакты
             archiveArtifacts artifacts: 'allure-results/*, reports/*', allowEmptyArchive: true
         }
 
@@ -217,7 +227,11 @@ pipeline {
         }
 
         failure {
-            echo "❌ Сборка провалена! Некоторые тесты не прошли или тесты отсутствуют."
+            echo "❌ Сборка провалена! Некоторые тесты не прошли или Selenoid недоступен."
+            echo "Проверьте:"
+            echo "  1. Запущен ли Selenoid контейнер"
+            echo "  2. Правильный ли URL: ${EXECUTOR_URL}"
+            echo "  3. Доступны ли контейнеры друг другу по сети"
         }
 
         cleanup {
