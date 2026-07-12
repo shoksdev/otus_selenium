@@ -80,11 +80,8 @@ pipeline {
                     echo "🔍 Проверка доступности Selenoid..."
                     if curl -s -o /dev/null -w "%{http_code}" ${EXECUTOR_URL}/status | grep -q "200"; then
                         echo "✅ Selenoid доступен"
-                        echo "📊 Доступные браузеры:"
-                        curl -s ${EXECUTOR_URL}/status | python3 -m json.tool || echo "Не удалось получить список браузеров"
                     else
                         echo "⚠️ Selenoid не доступен по адресу ${EXECUTOR_URL}"
-                        echo "Проверьте, запущен ли контейнер selenoid"
                     fi
                 '''
             }
@@ -126,7 +123,6 @@ pipeline {
 
                     if [ ! -d "tests" ] || [ -z "$(ls -A tests 2>/dev/null)" ]; then
                         echo "❌ Ошибка: Директория tests пуста или не существует!"
-                        echo "Пожалуйста, добавьте тесты в директорию tests/"
                         exit 1
                     fi
 
@@ -155,7 +151,6 @@ pipeline {
             steps {
                 echo '📊 Генерация Allure отчета...'
                 script {
-                    // Проверяем наличие Allure в системе
                     def allureInstalled = sh(script: 'command -v allure', returnStatus: true) == 0
 
                     if (allureInstalled && fileExists('allure-results')) {
@@ -164,11 +159,8 @@ pipeline {
                             allure generate allure-results -o allure-report --clean
                             echo "✅ Allure отчет сгенерирован"
                         '''
-                    } else if (!allureInstalled) {
-                        echo "⚠️ Allure не установлен. Пропускаем генерацию отчета."
-                        echo "💡 Для установки Allure выполните: sudo apt-get install allure"
                     } else {
-                        echo "⚠️ Нет результатов Allure для генерации отчета"
+                        echo "⚠️ Allure не установлен или нет результатов. Пропускаем."
                     }
                 }
             }
@@ -179,7 +171,6 @@ pipeline {
         always {
             echo '📈 Публикация отчетов...'
 
-            // Публикация JUnit отчетов
             script {
                 if (fileExists('reports/junit.xml')) {
                     junit allowEmptyResults: true, testResults: 'reports/junit.xml'
@@ -189,7 +180,6 @@ pipeline {
                 }
             }
 
-            // Сохраняем артефакты
             archiveArtifacts artifacts: 'allure-results/*, reports/*', allowEmptyArchive: true
         }
 
@@ -199,15 +189,6 @@ pipeline {
 
         failure {
             echo "❌ Сборка провалена! Некоторые тесты не прошли."
-            echo "Проверьте:"
-            echo "  1. Доступен ли Selenoid: ${EXECUTOR_URL}"
-            echo "  2. Доступен ли PrestaShop: ${PRESTASHOP_URL}"
-            echo "  3. Правильные ли версии браузеров указаны"
-        }
-
-        cleanup {
-            echo '🧹 Очистка workspace...'
-            cleanWs()
         }
     }
 }
