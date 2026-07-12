@@ -42,11 +42,6 @@ pipeline {
             defaultValue: true,
             description: 'Генерировать ли Allure отчет?'
         )
-        booleanParam(
-            name: 'HEADLESS',
-            defaultValue: true,
-            description: 'Запускать браузер в headless режиме?'
-        )
     }
 
     environment {
@@ -56,7 +51,6 @@ pipeline {
         BROWSER = "${params.BROWSER}"
         BROWSER_VERSION = "${params.BROWSER_VERSION}"
         FLOW_COUNT = "${params.FLOW_COUNT}"
-        HEADLESS = "${params.HEADLESS}"
     }
 
     stages {
@@ -76,30 +70,21 @@ pipeline {
                 echo "   BROWSER: ${params.BROWSER}"
                 echo "   BROWSER_VERSION: ${params.BROWSER_VERSION}"
                 echo "   FLOW_COUNT: ${params.FLOW_COUNT}"
-                echo "   HEADLESS: ${params.HEADLESS}"
                 echo "   PYTEST_ARGS: ${params.PYTEST_ARGS}"
                 echo "   RUN_LINT: ${params.RUN_LINT}"
                 echo "   GENERATE_ALLURE: ${params.GENERATE_ALLURE}"
                 sh 'python3 --version'
                 sh 'pwd'
                 sh 'ls -la'
-                // Проверяем наличие браузеров для локального запуска
                 sh '''
-                    echo "🔍 Проверка браузеров для локального запуска:"
-                    if command -v google-chrome &> /dev/null || command -v google-chrome-stable &> /dev/null; then
-                        echo "✅ Chrome установлен"
+                    echo "🔍 Проверка доступности Selenoid..."
+                    if curl -s -o /dev/null -w "%{http_code}" ${EXECUTOR_URL}/status | grep -q "200"; then
+                        echo "✅ Selenoid доступен"
+                        echo "📊 Доступные браузеры:"
+                        curl -s ${EXECUTOR_URL}/status | python3 -m json.tool || echo "Не удалось получить список браузеров"
                     else
-                        echo "⚠️ Chrome не найден - тесты могут не запуститься локально"
-                    fi
-                    if command -v firefox &> /dev/null; then
-                        echo "✅ Firefox установлен"
-                    else
-                        echo "⚠️ Firefox не найден"
-                    fi
-                    if command -v chromedriver &> /dev/null; then
-                        echo "✅ ChromeDriver установлен"
-                    else
-                        echo "⚠️ ChromeDriver не найден"
+                        echo "⚠️ Selenoid не доступен по адресу ${EXECUTOR_URL}"
+                        echo "Проверьте, запущен ли контейнер selenoid"
                     fi
                 '''
             }
@@ -133,7 +118,7 @@ pipeline {
 
         stage('Test') {
             steps {
-                echo '🚀 Запуск тестов локально...'
+                echo '🚀 Запуск тестов на Selenoid...'
                 sh '''
                     rm -rf allure-results reports
                     mkdir -p allure-results reports
@@ -141,41 +126,24 @@ pipeline {
 
                     if [ ! -d "tests" ] || [ -z "$(ls -A tests 2>/dev/null)" ]; then
                         echo "❌ Ошибка: Директория tests пуста или не существует!"
+                        echo "Пожалуйста, добавьте тесты в директорию tests/"
                         exit 1
                     fi
 
-                    # Запускаем тесты локально
-                    echo "🔧 Запуск в режиме: ${HEADLESS}"
-                    if [ "${HEADLESS}" = "true" ]; then
-                        echo "🖥️ Headless режим"
-                        HEADLESS_ARG="--headless"
-                    else
-                        echo "🖥️ Обычный режим"
-                        HEADLESS_ARG=""
-                    fi
+                    echo "🔧 Запуск тестов с параметрами:"
+                    echo "   Браузер: ${BROWSER}"
+                    echo "   Версия: ${BROWSER_VERSION}"
+                    echo "   Executor: ${EXECUTOR_URL}"
 
-                    # Пытаемся запустить с xvfb-run если доступен
-                    if command -v xvfb-run &> /dev/null; then
-                        echo "🔄 Использую xvfb-run"
-                        xvfb-run -a pytest tests/ \
-                            --junitxml=reports/junit.xml \
-                            --html=reports/report.html \
-                            --self-contained-html \
-                            --browser=${BROWSER} \
-                            --executor=local \
-                            ${HEADLESS_ARG} \
-                            ${PYTEST_ARGS}
-                    else
-                        echo "⚠️ xvfb-run не найден, запускаю напрямую"
-                        pytest tests/ \
-                            --junitxml=reports/junit.xml \
-                            --html=reports/report.html \
-                            --self-contained-html \
-                            --browser=${BROWSER} \
-                            --executor=local \
-                            ${HEADLESS_ARG} \
-                            ${PYTEST_ARGS}
-                    fi
+                    pytest tests/ \
+                        --junitxml=reports/junit.xml \
+                        --html=reports/report.html \
+                        --self-contained-html \
+                        --browser=${BROWSER} \
+                        --browser-version=${BROWSER_VERSION} \
+                        --executor=selenoid \
+                        --selenoid-url=${EXECUTOR_URL} \
+                        ${PYTEST_ARGS}
                 '''
             }
         }
@@ -187,6 +155,7 @@ pipeline {
             steps {
                 echo '📊 Генерация Allure отчета...'
                 script {
+                    // Проверяем наличие Allure в системе
                     def allureInstalled = sh(script: 'command -v allure', returnStatus: true) == 0
 
                     if (allureInstalled && fileExists('allure-results')) {
@@ -195,8 +164,11 @@ pipeline {
                             allure generate allure-results -o allure-report --clean
                             echo "✅ Allure отчет сгенерирован"
                         '''
+                    } else if (!allureInstalled) {
+                        echo "⚠️ Allure не установлен. Пропускаем генерацию отчета."
+                        echo "💡 Для установки Allure выполните: sudo apt-get install allure"
                     } else {
-                        echo "⚠️ Allure не установлен или нет результатов. Пропускаем."
+                        echo "⚠️ Нет результатов Allure для генерации отчета"
                     }
                 }
             }
@@ -207,6 +179,7 @@ pipeline {
         always {
             echo '📈 Публикация отчетов...'
 
+            // Публикация JUnit отчетов
             script {
                 if (fileExists('reports/junit.xml')) {
                     junit allowEmptyResults: true, testResults: 'reports/junit.xml'
@@ -226,6 +199,15 @@ pipeline {
 
         failure {
             echo "❌ Сборка провалена! Некоторые тесты не прошли."
+            echo "Проверьте:"
+            echo "  1. Доступен ли Selenoid: ${EXECUTOR_URL}"
+            echo "  2. Доступен ли PrestaShop: ${PRESTASHOP_URL}"
+            echo "  3. Правильные ли версии браузеров указаны"
+        }
+
+        cleanup {
+            echo '🧹 Очистка workspace...'
+            cleanWs()
         }
     }
 }
