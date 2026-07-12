@@ -75,7 +75,7 @@ pipeline {
                 echo "   GENERATE_ALLURE: ${params.GENERATE_ALLURE}"
                 sh 'python3 --version'
                 sh 'pwd'
-                sh 'echo "Workspace: ${WORKSPACE}"'
+                sh 'ls -la'
             }
         }
 
@@ -87,6 +87,8 @@ pipeline {
                     . ${VENV_PATH}/bin/activate
                     pip install --upgrade pip
                     pip install -r requirements.txt
+                    # Устанавливаем pytest-html если его нет в requirements
+                    pip install pytest-html pytest-xdist || true
                 '''
             }
         }
@@ -108,19 +110,24 @@ pipeline {
             steps {
                 echo '🚀 Запуск тестов...'
                 sh '''
+                    rm -rf allure-results reports
                     mkdir -p allure-results reports
-                '''
-
-                sh '''
                     . ${VENV_PATH}/bin/activate
+
+                    # Проверяем наличие тестов
+                    if [ ! -d "tests" ] || [ -z "$(ls -A tests 2>/dev/null)" ]; then
+                        echo "❌ Ошибка: Директория tests пуста или не существует!"
+                        echo "Пожалуйста, добавьте тесты в директорию tests/"
+                        exit 1
+                    fi
+
+                    # Запускаем тесты
                     pytest tests/ \
                         --junitxml=reports/junit.xml \
                         --html=reports/report.html \
                         --self-contained-html \
                         ${PYTEST_ARGS}
                 '''
-
-                echo '✅ Тесты завершены'
             }
         }
 
@@ -131,23 +138,18 @@ pipeline {
             steps {
                 echo '📊 Генерация Allure отчета...'
                 script {
-                    // Проверяем наличие Allure в системе
                     def allureInstalled = sh(script: 'command -v allure', returnStatus: true) == 0
 
-                    if (allureInstalled) {
+                    if (allureInstalled && fileExists('allure-results') && fileExists('allure-results/*.json')) {
                         sh '''
-                            # Создаем директорию для отчета
-                            mkdir -p allure-reports
-                            # Генерируем отчет
+                            mkdir -p allure-report
                             allure generate allure-results -o allure-report --clean
                             echo "✅ Allure отчет сгенерирован"
                         '''
+                    } else if (!allureInstalled) {
+                        echo "⚠️ Allure не установлен. Пропускаем генерацию отчета."
                     } else {
-                        echo "⚠️ Allure не установлен в системе. Пропускаем генерацию отчета."
-                        echo "Для установки Allure выполните:"
-                        echo "  sudo apt-add-repository ppa:qameta/allure"
-                        echo "  sudo apt-get update"
-                        echo "  sudo apt-get install allure"
+                        echo "⚠️ Нет результатов Allure для генерации отчета"
                     }
                 }
             }
@@ -158,39 +160,52 @@ pipeline {
         always {
             echo '📈 Публикация отчетов...'
 
-            junit allowEmptyResults: true, testResults: 'reports/junit.xml'
-
-            publishHTML(target: [
-                allowMissing: true,
-                alwaysLinkToLastBuild: true,
-                keepAll: true,
-                reportDir: 'reports',
-                reportFiles: 'report.html',
-                reportName: 'Pytest HTML Report'
-            ])
+            script {
+                if (fileExists('reports/junit.xml')) {
+                    junit allowEmptyResults: true, testResults: 'reports/junit.xml'
+                    echo '✅ JUnit отчет опубликован'
+                } else {
+                    echo '⚠️ JUnit отчет не найден'
+                }
+            }
 
             script {
-                if (params.GENERATE_ALLURE == true) {
-                    def allureReportExists = fileExists('allure-report/index.html')
+                try {
+                    if (fileExists('reports/report.html')) {
+                        publishHTML target: [
+                            allowMissing: true,
+                            alwaysLinkToLastBuild: true,
+                            keepAll: true,
+                            reportDir: 'reports',
+                            reportFiles: 'report.html',
+                            reportName: 'Pytest HTML Report'
+                        ]
+                        echo '✅ Pytest HTML отчет опубликован'
+                    }
+                } catch (Exception e) {
+                    echo "⚠️ Плагин HTML Publisher не установлен: ${e.message}"
+                }
+            }
 
-                    if (allureReportExists) {
-                        publishHTML(target: [
+            script {
+                if (params.GENERATE_ALLURE == true && fileExists('allure-report/index.html')) {
+                    try {
+                        publishHTML target: [
                             allowMissing: true,
                             alwaysLinkToLastBuild: true,
                             keepAll: true,
                             reportDir: 'allure-report',
                             reportFiles: 'index.html',
                             reportName: 'Allure Report'
-                        ])
+                        ]
                         echo '✅ Allure отчет опубликован'
-                    } else {
-                        echo '⚠️ Allure отчет не найден'
+                    } catch (Exception e) {
+                        echo "⚠️ Не удалось опубликовать Allure отчет"
                     }
                 }
             }
 
-            archiveArtifacts artifacts: 'allure-results/*', allowEmptyArchive: true
-            archiveArtifacts artifacts: 'reports/*', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'allure-results/*, reports/*', allowEmptyArchive: true
         }
 
         success {
@@ -198,7 +213,7 @@ pipeline {
         }
 
         failure {
-            echo "❌ Сборка провалена! Некоторые тесты не прошли."
+            echo "❌ Сборка провалена! Некоторые тесты не прошли или тесты отсутствуют."
         }
 
         cleanup {
