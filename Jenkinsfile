@@ -32,10 +32,28 @@ pipeline {
             defaultValue: '--alluredir allure-results --strict-markers --tb=short --verbose',
             description: 'Дополнительные аргументы для pytest'
         )
+        // Добавляем недостающие параметры
+        booleanParam(
+            name: 'RUN_LINT',
+            defaultValue: false,
+            description: 'Запускать ли линтер?'
+        )
+        booleanParam(
+            name: 'GENERATE_COVERAGE',
+            defaultValue: true,
+            description: 'Генерировать ли отчет о покрытии?'
+        )
     }
 
     environment {
+        // WORKSPACE - автоматическая переменная Jenkins
         VENV_PATH = "${WORKSPACE}/.venv"
+        // Можно также явно передать в переменные окружения для тестов
+        EXECUTOR_URL = "${params.EXECUTOR_URL}"
+        PRESTASHOP_URL = "${params.PRESTASHOP_URL}"
+        BROWSER = "${params.BROWSER}"
+        BROWSER_VERSION = "${params.BROWSER_VERSION}"
+        FLOW_COUNT = "${params.FLOW_COUNT}"
     }
 
     stages {
@@ -49,14 +67,16 @@ pipeline {
         stage('Environment Info') {
             steps {
                 echo "📋 Параметры сборки:"
-                echo "   ${params.EXECUTOR_URL}"
-                echo "   ${params.PRESTASHOP_URL}"
-                echo "   ${params.BROWSER}"
-                echo "   ${params.BROWSER_VERSION}"
-                echo "   ${params.FLOW_COUNT}"
-                echo "   ${params.PYTEST_ARGS}"
+                echo "   WORKSPACE: ${WORKSPACE}"
+                echo "   EXECUTOR_URL: ${params.EXECUTOR_URL}"
+                echo "   PRESTASHOP_URL: ${params.PRESTASHOP_URL}"
+                echo "   BROWSER: ${params.BROWSER}"
+                echo "   BROWSER_VERSION: ${params.BROWSER_VERSION}"
+                echo "   FLOW_COUNT: ${params.FLOW_COUNT}"
+                echo "   PYTEST_ARGS: ${params.PYTEST_ARGS}"
                 sh 'python3 --version'
                 sh 'pwd'
+                sh 'echo "Workspace: ${WORKSPACE}"'
             }
         }
 
@@ -89,15 +109,15 @@ pipeline {
             steps {
                 echo 'Запуск тестов...'
                 sh '''
-                    . venv/bin/activate
-                    mkdir -p allure-results
+                    . ${VENV_PATH}/bin/activate
+                    mkdir -p reports allure-results
                     pytest tests/ \
                         --junitxml=reports/junit.xml \
                         --html=reports/report.html \
                         --cov=src \
                         --cov-report=xml:reports/coverage.xml \
                         --cov-report=html:reports/htmlcov \
-                        ${params.PYTEST_ARGS}
+                        ${PYTEST_ARGS}
                 '''
             }
         }
