@@ -1,17 +1,17 @@
-FROM python:3.12.0
+FROM jenkins/jenkins:lts
 
 USER root
 
-WORKDIR /root/prestashop_tests
+RUN apt-get update && \
+    apt-get install -y python3 python3-pip python3-venv && \
+    apt-get clean
 
-COPY requirements.txt .
+RUN pip3 install --no-cache-dir --break-system-packages \
+    pytest pytest-html pytest-cov pytest-xdist \
+    allure-pytest flake8 pylint mypy
 
-RUN apt update && \
-    apt install -y default-jre nodejs npm && \
-    npm install -g allure && \
-    pip install --no-cache-dir -r requirements.txt requests && \
-    rm -rf /var/lib/apt/lists/*
+RUN jenkins-plugin-cli --plugins \
+    git workflow-aggregator allure-jenkins-plugin \
+    junit docker-workflow warnings-ng
 
-COPY . .
-
-ENTRYPOINT ["/bin/bash", "entrypoint.sh"]
+USER jenkins

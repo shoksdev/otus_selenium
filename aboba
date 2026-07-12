@@ -1,0 +1,17 @@
+FROM python:3.12.0
+
+USER root
+
+WORKDIR /root/prestashop_tests
+
+COPY requirements.txt .
+
+RUN apt update && \
+    apt install -y default-jre nodejs npm && \
+    npm install -g allure && \
+    pip install --no-cache-dir -r requirements.txt requests && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY . .
+
+ENTRYPOINT ["/bin/bash", "entrypoint.sh"]
