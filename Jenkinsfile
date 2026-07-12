@@ -37,10 +37,20 @@ pipeline {
             defaultValue: false,
             description: 'Запускать ли линтер?'
         )
+        booleanParam(
+            name: 'GENERATE_ALLURE',
+            defaultValue: true,
+            description: 'Генерировать ли Allure отчет?'
+        )
     }
 
     environment {
         VENV_PATH = "${WORKSPACE}/.venv"
+        EXECUTOR_URL = "${params.EXECUTOR_URL}"
+        PRESTASHOP_URL = "${params.PRESTASHOP_URL}"
+        BROWSER = "${params.BROWSER}"
+        BROWSER_VERSION = "${params.BROWSER_VERSION}"
+        FLOW_COUNT = "${params.FLOW_COUNT}"
     }
 
     stages {
@@ -61,6 +71,8 @@ pipeline {
                 echo "   BROWSER_VERSION: ${params.BROWSER_VERSION}"
                 echo "   FLOW_COUNT: ${params.FLOW_COUNT}"
                 echo "   PYTEST_ARGS: ${params.PYTEST_ARGS}"
+                echo "   RUN_LINT: ${params.RUN_LINT}"
+                echo "   GENERATE_ALLURE: ${params.GENERATE_ALLURE}"
                 sh 'python3 --version'
                 sh 'pwd'
                 sh 'echo "Workspace: ${WORKSPACE}"'
@@ -94,15 +106,50 @@ pipeline {
 
         stage('Test') {
             steps {
-                echo 'Запуск тестов...'
+                echo '🚀 Запуск тестов...'
+                sh '''
+                    mkdir -p allure-results reports
+                '''
+
                 sh '''
                     . ${VENV_PATH}/bin/activate
-                    mkdir -p reports allure-results
                     pytest tests/ \
                         --junitxml=reports/junit.xml \
                         --html=reports/report.html \
+                        --self-contained-html \
                         ${PYTEST_ARGS}
                 '''
+
+                echo '✅ Тесты завершены'
+            }
+        }
+
+        stage('Generate Allure Report') {
+            when {
+                expression { params.GENERATE_ALLURE == true }
+            }
+            steps {
+                echo '📊 Генерация Allure отчета...'
+                script {
+                    // Проверяем наличие Allure в системе
+                    def allureInstalled = sh(script: 'command -v allure', returnStatus: true) == 0
+
+                    if (allureInstalled) {
+                        sh '''
+                            # Создаем директорию для отчета
+                            mkdir -p allure-reports
+                            # Генерируем отчет
+                            allure generate allure-results -o allure-report --clean
+                            echo "✅ Allure отчет сгенерирован"
+                        '''
+                    } else {
+                        echo "⚠️ Allure не установлен в системе. Пропускаем генерацию отчета."
+                        echo "Для установки Allure выполните:"
+                        echo "  sudo apt-add-repository ppa:qameta/allure"
+                        echo "  sudo apt-get update"
+                        echo "  sudo apt-get install allure"
+                    }
+                }
             }
         }
     }
@@ -110,14 +157,50 @@ pipeline {
     post {
         always {
             echo '📈 Публикация отчетов...'
+
             junit allowEmptyResults: true, testResults: 'reports/junit.xml'
+
+            publishHTML(target: [
+                allowMissing: true,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
+                reportDir: 'reports',
+                reportFiles: 'report.html',
+                reportName: 'Pytest HTML Report'
+            ])
+
+            script {
+                if (params.GENERATE_ALLURE == true) {
+                    def allureReportExists = fileExists('allure-report/index.html')
+
+                    if (allureReportExists) {
+                        publishHTML(target: [
+                            allowMissing: true,
+                            alwaysLinkToLastBuild: true,
+                            keepAll: true,
+                            reportDir: 'allure-report',
+                            reportFiles: 'index.html',
+                            reportName: 'Allure Report'
+                        ])
+                        echo '✅ Allure отчет опубликован'
+                    } else {
+                        echo '⚠️ Allure отчет не найден'
+                    }
+                }
+            }
+
+            archiveArtifacts artifacts: 'allure-results/*', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'reports/*', allowEmptyArchive: true
         }
+
         success {
-            echo "✅ Сборка успешна!"
+            echo "✅ Сборка успешна! Все тесты пройдены."
         }
+
         failure {
-            echo "❌ Сборка провалена!"
+            echo "❌ Сборка провалена! Некоторые тесты не прошли."
         }
+
         cleanup {
             echo '🧹 Очистка workspace...'
             cleanWs()
