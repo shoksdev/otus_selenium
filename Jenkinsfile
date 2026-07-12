@@ -37,11 +37,6 @@ pipeline {
             defaultValue: false,
             description: 'Запускать ли линтер?'
         )
-        booleanParam(
-            name: 'GENERATE_COVERAGE',
-            defaultValue: true,
-            description: 'Генерировать ли отчет о покрытии?'
-        )
     }
 
     environment {
