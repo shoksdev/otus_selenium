@@ -46,19 +46,16 @@ def get_browser_options(browser_name, headless):
     raise ValueError(f"Unsupported browser: {browser_name}")
 
 
-@pytest.fixture(params=["chrome", "firefox"])
-def driver(request):
+@pytest.fixture
+def browser(request):
     """Фикстура для создания WebDriver"""
 
-    browser_name = request.param
+    # Получаем параметры из командной строки
+    browser_name = request.config.getoption("--browser")
     executor = request.config.getoption("--executor")
     browser_version = request.config.getoption("--browser-version")
     headless = request.config.getoption("--headless")
     selenoid_url = request.config.getoption("--selenoid-url")
-
-    cli_browser = request.config.getoption("--browser")
-    if cli_browser and cli_browser != browser_name:
-        browser_name = cli_browser
 
     logger = logging.getLogger(request.node.name)
     os.makedirs("logs", exist_ok=True)
@@ -78,7 +75,7 @@ def driver(request):
             driver = webdriver.Firefox(options=options)
 
     else:
-        logger.info(f"Starting {browser_name} on Selenoid")
+        logger.info(f"Starting {browser_name} on Selenoid at {selenoid_url}")
 
         options.set_capability("browserName", browser_name)
         options.set_capability("browserVersion", browser_version)
@@ -87,12 +84,6 @@ def driver(request):
             "enableVideo": False,
             "sessionTimeout": "5m"
         })
-
-        if browser_name == "firefox":
-            options.set_capability("moz:firefoxOptions", {
-                "args": ["--window-size=1920,1080", "--no-sandbox"],
-                "prefs": {"browser.startup.homepage": "about:blank"}
-            })
 
         driver = webdriver.Remote(
             command_executor=selenoid_url,

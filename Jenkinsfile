@@ -121,11 +121,15 @@ pipeline {
                         exit 1
                     fi
 
-                    # Запускаем тесты
+                    # Запускаем тесты с передачей параметров
                     pytest tests/ \
                         --junitxml=reports/junit.xml \
                         --html=reports/report.html \
                         --self-contained-html \
+                        --browser=${BROWSER} \
+                        --browser-version=${BROWSER_VERSION} \
+                        --executor=selenoid \
+                        --selenoid-url=${EXECUTOR_URL} \
                         ${PYTEST_ARGS}
                 '''
             }
