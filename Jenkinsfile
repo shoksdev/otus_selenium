@@ -32,7 +32,6 @@ pipeline {
             defaultValue: '--alluredir allure-results --strict-markers --tb=short --verbose',
             description: 'Дополнительные аргументы для pytest'
         )
-        // Добавляем недостающие параметры
         booleanParam(
             name: 'RUN_LINT',
             defaultValue: false,
@@ -46,14 +45,7 @@ pipeline {
     }
 
     environment {
-        // WORKSPACE - автоматическая переменная Jenkins
         VENV_PATH = "${WORKSPACE}/.venv"
-        // Можно также явно передать в переменные окружения для тестов
-        EXECUTOR_URL = "${params.EXECUTOR_URL}"
-        PRESTASHOP_URL = "${params.PRESTASHOP_URL}"
-        BROWSER = "${params.BROWSER}"
-        BROWSER_VERSION = "${params.BROWSER_VERSION}"
-        FLOW_COUNT = "${params.FLOW_COUNT}"
     }
 
     stages {
@@ -114,9 +106,6 @@ pipeline {
                     pytest tests/ \
                         --junitxml=reports/junit.xml \
                         --html=reports/report.html \
-                        --cov=src \
-                        --cov-report=xml:reports/coverage.xml \
-                        --cov-report=html:reports/htmlcov \
                         ${PYTEST_ARGS}
                 '''
             }
@@ -127,19 +116,6 @@ pipeline {
         always {
             echo '📈 Публикация отчетов...'
             junit allowEmptyResults: true, testResults: 'reports/junit.xml'
-
-            script {
-                if (params.GENERATE_COVERAGE) {
-                    publishHTML(target: [
-                        allowMissing: true,
-                        alwaysLinkToLastBuild: true,
-                        keepAll: true,
-                        reportDir: 'reports/htmlcov',
-                        reportFiles: 'index.html',
-                        reportName: 'Coverage Report'
-                    ])
-                }
-            }
         }
         success {
             echo "✅ Сборка успешна!"
